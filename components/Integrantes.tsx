@@ -272,6 +272,7 @@ const Integrantes: React.FC = () => {
             processedData.push({
               cpf: finalCpf,
               nome: row['Nome'],
+              email: row['Email'],
               cargo: row['Cargo'],
               unidade: row['Unidade'],
               data_ultimo_aso: asoDate
@@ -293,7 +294,7 @@ const Integrantes: React.FC = () => {
           }
 
           if (processedData.length === 0) {
-            alert('Nenhum dado válido encontrado (Verifique se as colunas Nome e CPF existem).');
+            alert('Nenhum dado válido encontrado (Verifique se as colunas Nome, CPF e Email existem).');
             setLoading(false);
             return;
           }
