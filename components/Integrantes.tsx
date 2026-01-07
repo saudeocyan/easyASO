@@ -364,7 +364,7 @@ const Integrantes: React.FC = () => {
 
   return (
     <div className="flex-1 overflow-y-auto p-8 relative">
-      <div className="max-w-7xl mx-auto flex flex-col h-full">
+      <div className="max-w-7xl mx-auto flex flex-col min-h-full">
         {/* Controls */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
           <div className="flex flex-1 w-full lg:w-auto items-center gap-3">
@@ -464,8 +464,8 @@ const Integrantes: React.FC = () => {
         </div>
 
         {/* Table */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-soft overflow-visible flex-1 flex flex-col min-h-[500px]">
-          <div className="overflow-visible">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-soft flex flex-col relative">
+          <div className="overflow-x-auto rounded-t-xl">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-100 text-xs uppercase tracking-wider text-text-secondary">
