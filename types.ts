@@ -11,6 +11,7 @@ export interface User {
 export interface Member extends User {
   cargo?: string; // mapped from DB 'cargo'
   unidade?: string; // mapped from DB 'unidade'
+  cpf?: string; // mapped from DB 'cpf'
   lastAsoDate: string; // mapped from DB 'data_ultimo_aso'
   expirationDate: string; // mapped from DB view 'data_vencimento'
   status: 'Valid' | 'Warning' | 'Expired' | 'Urgent'; // mapped from DB view 'status'
