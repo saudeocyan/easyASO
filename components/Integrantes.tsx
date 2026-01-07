@@ -237,9 +237,10 @@ const Integrantes: React.FC = () => {
 
           // Process data
           const processedData = data.map((row: any) => {
-            // Clean CPF: remove non-numeric chars
-            const rawCpf = row['CPF'] ? String(row['CPF']) : '';
+            // Clean CPF: remove non-numeric chars, pad with zeros
+            const rawCpf = String(row['CPF'] || '');
             const cleanCpf = rawCpf.replace(/\D/g, '');
+            const finalCpf = cleanCpf.padStart(11, '0');
 
             // Handle date (Excel serial date or string)
             let asoDate = null;
@@ -256,7 +257,7 @@ const Integrantes: React.FC = () => {
             }
 
             return {
-              cpf: cleanCpf,
+              cpf: finalCpf,
               nome: row['Nome'],
               cargo: row['Cargo'],
               unidade: row['Unidade'],
