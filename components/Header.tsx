@@ -14,18 +14,11 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onNotificationsClick }
         {subtitle && <p className="text-xs text-text-secondary">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-6">
-        {/* Search */}
-        <div className="relative hidden md:block">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[1.25rem]">search</span>
-          <input 
-            type="text" 
-            placeholder="Pesquisar..." 
-            className="pl-10 pr-4 py-2 w-64 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all placeholder-gray-400 outline-none"
-          />
-        </div>
-        
+        {/* Search - Removed as per request */}
+
+
         {/* Notifications */}
-        <button 
+        <button
           onClick={onNotificationsClick}
           className="relative p-2 text-gray-500 hover:bg-gray-50 rounded-full transition-colors group"
         >

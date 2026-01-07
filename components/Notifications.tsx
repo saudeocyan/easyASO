@@ -14,7 +14,7 @@ const Notifications: React.FC = () => {
           .from('audit_logs')
           .select(`
             *,
-            actor:usuarios (
+            actor:usuarios!actor_id (
               nome
             )
           `)
@@ -25,32 +25,35 @@ const Notifications: React.FC = () => {
 
         const mappedLogs: NotificationLog[] = (data || []).map((log: any) => {
           let type: 'create' | 'edit' | 'delete' | 'system' = 'system';
-          const action = log.action.toLowerCase();
+          const action = (log.action || '').toLowerCase();
           if (action.includes('create') || action.includes('add') || action.includes('insert')) type = 'create';
           else if (action.includes('update') || action.includes('edit')) type = 'edit';
           else if (action.includes('delete') || action.includes('remove')) type = 'delete';
 
           const date = new Date(log.timestamp);
-          const formattedTime = date.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }); // Simplified formatting
-          // Or use a relative time library if available, but staying simple.
+          const formattedTime = date.toLocaleString('pt-BR', { hour: 'numeric', minute: 'numeric' });
           const timeDiff = new Date().getTime() - date.getTime();
           const hoursDiff = Math.floor(timeDiff / (1000 * 3600));
           let timeDisplay = formattedTime;
-          if (hoursDiff < 24 && hoursDiff > 0) timeDisplay = `${hoursDiff}h ago`;
-          else if (hoursDiff == 0) timeDisplay = 'Just now';
-          else timeDisplay = date.toLocaleDateString();
 
+          if (hoursDiff < 24 && hoursDiff > 0) timeDisplay = `Há ${hoursDiff}h`;
+          else if (hoursDiff == 0) {
+            const minutesDiff = Math.floor(timeDiff / (1000 * 60));
+            if (minutesDiff < 1) timeDisplay = 'Agora mesmo';
+            else timeDisplay = `Há ${minutesDiff}m`;
+          }
+          else timeDisplay = date.toLocaleDateString('pt-BR');
 
           return {
             id: log.id,
             type,
-            actorName: log.actor?.nome || 'Unknown User',
-            actorAvatar: undefined, // No avatar in audit_logs or simple join yet
+            actorName: log.actor?.nome || 'Usuário Desconhecido',
+            actorAvatar: undefined,
             action: log.action,
-            target: log.target,
-            targetName: log.target,
+            target: log.target || '',
+            targetName: log.target || '',
             timestamp: timeDisplay,
-            details: ''
+            details: log.details
           };
         });
         setNotifications(mappedLogs);

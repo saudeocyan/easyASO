@@ -2,12 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { Member } from '../types';
+import { logAction } from '../utils/logger';
 
 const Integrantes: React.FC = () => {
   // State for members list
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Pagination & Filters State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterUnit, setFilterUnit] = useState('');
 
   // View Details State
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -75,10 +84,29 @@ const Integrantes: React.FC = () => {
     }
   };
 
-  const filteredMembers = members.filter(m =>
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.email.toLowerCase().includes(searchTerm.toLowerCase())
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterUnit]);
+
+  const filteredMembers = members.filter(m => {
+    const searchLower = searchTerm.toLowerCase();
+    const nameMatch = (m.name || '').toLowerCase().includes(searchLower);
+    const emailMatch = (m.email || '').toLowerCase().includes(searchLower);
+    const statusMatch = filterStatus ? m.status === filterStatus : true;
+    const unitMatch = filterUnit ? m.unit === filterUnit : true;
+
+    return (nameMatch || emailMatch) && statusMatch && unitMatch;
+  });
+
+  const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
+  const paginatedMembers = filteredMembers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
+
+  // Get unique units for filter
+  const uniqueUnits = Array.from(new Set(members.map(m => m.unit))).filter(Boolean).sort();
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -103,7 +131,9 @@ const Integrantes: React.FC = () => {
         const { error } = await supabase.from('integrantes').delete().eq('id', memberId);
         if (error) throw error;
 
-        // Log to audit (optional, could be trigger)
+        // Log to audit
+        await logAction('delete', `Integrante: ${members.find(m => m.id === memberId)?.name}`, `ID: ${memberId}`);
+
         // Update local state
         setMembers(prev => prev.filter(m => m.id !== memberId));
       } catch (error) {
@@ -143,6 +173,8 @@ const Integrantes: React.FC = () => {
       if (error) throw error;
 
       alert('Integrante atualizado com sucesso!');
+      await logAction('edit', `Integrante: ${editForm.name}`, `Atualizou dados do integrante`);
+
       fetchMembers(); // Refresh to get calculated status
 
       setEditingMember(null);
@@ -186,6 +218,8 @@ const Integrantes: React.FC = () => {
       if (error) throw error;
 
       alert('Integrante cadastrado com sucesso!');
+      await logAction('create', `Integrante: ${newMemberForm.name}`, `Novo integrante cadastrado`);
+
       fetchMembers(); // Refresh list structure
 
       setIsCreateModalOpen(false);
@@ -344,10 +378,64 @@ const Integrantes: React.FC = () => {
                 className="pl-10 pr-4 py-2.5 w-full bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder-gray-400 shadow-sm outline-none"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-text-secondary rounded-lg hover:bg-gray-50 hover:text-text-main transition-colors shadow-sm text-sm font-medium">
-              <span className="material-symbols-outlined text-[1.25rem]">filter_list</span>
-              Filtrar
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`flex items-center gap-2 px-4 py-2.5 bg-white border ${isFilterOpen || filterStatus || filterUnit ? 'border-primary text-primary' : 'border-gray-200 text-text-secondary'} rounded-lg hover:bg-gray-50 transition-colors shadow-sm text-sm font-medium`}
+              >
+                <span className="material-symbols-outlined text-[1.25rem]">filter_list</span>
+                Filtrar {(filterStatus || filterUnit) && '(Ativo)'}
+              </button>
+
+              {/* Filter Dropdown */}
+              {isFilterOpen && (
+                <div className="absolute top-12 left-0 w-64 bg-white rounded-xl shadow-xl border border-gray-100 p-4 z-20 animate-in fade-in zoom-in duration-200">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-bold text-text-secondary uppercase mb-2 block">Status</label>
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="">Todos</option>
+                        <option value="Valid">Válido</option>
+                        <option value="Warning">Atenção</option>
+                        <option value="Expired">Vencido</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-text-secondary uppercase mb-2 block">Unidade</label>
+                      <select
+                        value={filterUnit}
+                        onChange={(e) => setFilterUnit(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="">Todas</option>
+                        {uniqueUnits.map(u => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {(filterStatus || filterUnit) && (
+                      <button
+                        onClick={() => { setFilterStatus(''); setFilterUnit(''); }}
+                        className="w-full text-xs text-status-danger font-medium hover:underline text-center"
+                      >
+                        Limpar Filtros
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Active Members Counter */}
+            <div className="hidden sm:block pl-2 border-l border-gray-200 h-8 self-center flex items-center">
+              <p className="text-sm font-medium text-secondary">
+                <span className="font-bold text-primary">{filteredMembers.length}</span> Integrantes Ativos
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto justify-end flex-wrap">
             <button
@@ -391,7 +479,7 @@ const Integrantes: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredMembers.map((member) => (
+                {paginatedMembers.map((member) => (
                   <tr
                     key={member.id}
                     onClick={() => setSelectedMember(member)}
@@ -399,9 +487,11 @@ const Integrantes: React.FC = () => {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
+                        {/* Avatar removed as requested 
                         <div className={`w-9 h-9 rounded-full ${member.bgColor} ${member.initialsColor} flex items-center justify-center font-bold text-sm border border-gray-100`}>
                           {member.initials}
-                        </div>
+                        </div> 
+                        */}
                         <div>
                           <p className="font-semibold text-secondary group-hover:text-primary transition-colors">{member.name}</p>
                           <p className="text-xs text-text-secondary">{member.email}</p>
@@ -455,11 +545,23 @@ const Integrantes: React.FC = () => {
           </div>
           <div className="bg-white border-t border-gray-100 p-4 flex items-center justify-between mt-auto">
             <p className="text-xs text-text-secondary">
-              Exibindo <span className="font-semibold text-secondary">{filteredMembers.length}</span> resultados
+              Página <span className="font-semibold text-secondary">{currentPage}</span> de <span className="font-semibold text-secondary">{totalPages}</span>
             </p>
             <div className="flex gap-2">
-              <button className="px-3 py-1.5 border border-gray-200 rounded text-xs font-medium text-text-secondary hover:bg-gray-50 disabled:opacity-50" disabled>Anterior</button>
-              <button className="px-3 py-1.5 border border-gray-200 rounded text-xs font-medium text-text-secondary hover:bg-gray-50">Próximo</button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 border border-gray-200 rounded text-xs font-medium text-text-secondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-3 py-1.5 border border-gray-200 rounded text-xs font-medium text-text-secondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Próximo
+              </button>
             </div>
           </div>
         </div>
