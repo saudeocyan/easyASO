@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Convocation, Member } from '../types';
+import { logAction } from '../utils/logger';
 
 interface ConvocacaoProps {
   startWithModalOpen?: boolean;
@@ -180,6 +181,7 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
 
         if (createError) throw createError;
         memberId = newMember.id;
+        await logAction('create', `Integrante: ${newMemberName}`, 'Novo integrante criado via Convocação');
       } else {
         if (!memberId) {
           alert('Por favor, selecione um integrante.');
@@ -201,6 +203,7 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
       if (convError) throw convError;
 
       alert('Convocação criada com sucesso!');
+      await logAction('convocation', `Convocação: ${members.find(m => m.id === memberId)?.name || newMemberName}`, `Tipo: ${asoType}`);
       handleCloseModal();
       fetchData(); // Refresh list
 

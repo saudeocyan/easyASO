@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
+import { logAction } from '../utils/logger';
 
 interface User {
   id: string;
@@ -51,7 +52,10 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
 
       if (error) throw error;
 
+
+
       alert('Convite enviado com sucesso!');
+      await logAction('invite', `Convite: ${inviteEmail}`, `Nome: ${inviteName}`);
       setInviteEmail('');
       setInviteName('');
       fetchUsers(); // Refresh list
@@ -69,6 +73,7 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
         if (error) throw error;
 
         alert('Acesso cancelado com sucesso.');
+        await logAction('delete_access', `Usuário ID: ${userId}`, 'Acesso cancelado');
         fetchUsers();
       } catch (error: any) {
         console.error('Error deleting user:', error);
