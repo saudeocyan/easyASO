@@ -235,36 +235,62 @@ const Integrantes: React.FC = () => {
             return;
           }
 
-          // Process data
-          const processedData = data.map((row: any) => {
-            // Clean CPF: remove non-numeric chars, pad with zeros
+          // Pre-process and validate for duplicates
+          const cpfMap = new Map<string, number[]>(); // Map CPF -> Array of Row Indices (1-based from Excel view)
+          const processedData: any[] = [];
+          const duplicates: string[] = [];
+
+          // First pass: Process, clean, and check duplicates
+          data.forEach((row: any, index: number) => {
+            // Clean CPF
             const rawCpf = String(row['CPF'] || '');
             const cleanCpf = rawCpf.replace(/\D/g, '');
-            const finalCpf = cleanCpf.padStart(11, '0');
 
-            // Handle date (Excel serial date or string)
+            if (!cleanCpf) return; // Skip rows without CPF
+
+            const finalCpf = cleanCpf.padStart(11, '0');
+            const excelRowNumber = index + 2; // +2 because index is 0-based and header is row 1
+
+            // Check duplicate in map
+            if (cpfMap.has(finalCpf)) {
+              cpfMap.get(finalCpf)?.push(excelRowNumber);
+            } else {
+              cpfMap.set(finalCpf, [excelRowNumber]);
+            }
+
+            // Handle date
             let asoDate = null;
             if (row['Data Ultimo ASO']) {
-              // Check if it's a number (Excel serial date)
               if (typeof row['Data Ultimo ASO'] === 'number') {
-                // Excel serial date to JS Date (Excel base date is 1899-12-30)
                 const date = new Date(Math.round((row['Data Ultimo ASO'] - 25569) * 86400 * 1000));
                 asoDate = date.toISOString().split('T')[0];
               } else {
-                // Assume string DD/MM/YYYY
                 asoDate = String(row['Data Ultimo ASO']).split('/').reverse().join('-');
               }
             }
 
-            return {
+            processedData.push({
               cpf: finalCpf,
               nome: row['Nome'],
               cargo: row['Cargo'],
               unidade: row['Unidade'],
               data_ultimo_aso: asoDate
-              // Note: email is not in the required columns list, but required in DB/types.
-            };
-          }).filter(item => item.cpf && item.nome); // Validate basic requirements
+            });
+          });
+
+          // Identify actual duplicates
+          const errorMessages: string[] = [];
+          cpfMap.forEach((rows, cpf) => {
+            if (rows.length > 1) {
+              errorMessages.push(`CPF ${cpf} aparece ${rows.length} vezes (Linhas: ${rows.join(', ')})`);
+            }
+          });
+
+          if (errorMessages.length > 0) {
+            alert(`Erro: Duplicidade encontrada no arquivo.\n\n${errorMessages.join('\n')}\n\nCorrija o Excel e tente novamente.`);
+            setLoading(false);
+            return;
+          }
 
           if (processedData.length === 0) {
             alert('Nenhum dado válido encontrado (Verifique se as colunas Nome e CPF existem).');
