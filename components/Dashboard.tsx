@@ -35,7 +35,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
             m.status === 'Vencido' ? 'Expired' :
               m.status === 'Convocar Urgente' ? 'Urgent' :
                 m.status === 'Próximo do Vencimento' ? 'Warning' : 'Valid',
-          unit: m.unidade,
           // Initials generation
           initials: m.nome.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
           initialsColor: 'text-white',

@@ -224,7 +224,7 @@ const Integrantes: React.FC = () => {
       reader.onload = async (evt) => {
         try {
           const bstr = evt.target?.result;
-          const workbook = XLSX.read(bstr, { type: 'binary' });
+          const workbook = XLSX.read(bstr, { type: 'array' });
           const wsname = workbook.SheetNames[0];
           const ws = workbook.Sheets[wsname];
           const data = XLSX.utils.sheet_to_json(ws);
@@ -262,14 +262,7 @@ const Integrantes: React.FC = () => {
               cargo: row['Cargo'],
               unidade: row['Unidade'],
               data_ultimo_aso: asoDate
-              // Note: email is not in the required columns list, but required in DB/types. Assuming it might be missing or optional in this bulk import flow, or user needs to accept constraints.
-              // If email is NOT in excel, simple upsert might fail on NOT NULL constraints if it's a new record.
-              // Given the prompt: "Mapear as colunas: Nome, CPF, Cargo, Unidade, Data Ultimo ASO", I will follow strictly.
-              // If 'email' is required in DB but not in Excel, it might fail for new inserts.
-              // I'll assume 'email' is nullable or provided in Excel (though not listed in step 2.b).
-              // Actually, looking at `Integrantes.tsx` create handler, email is required.
-              // I'll add a check or optional mapping if it exists in Excel.
-              // For now, I will stick to what the user asked.
+              // Note: email is not in the required columns list, but required in DB/types.
             };
           }).filter(item => item.cpf && item.nome); // Validate basic requirements
 
@@ -290,16 +283,16 @@ const Integrantes: React.FC = () => {
           alert('Importação concluída com sucesso!');
           fetchMembers();
 
-        } catch (err) {
+        } catch (err: any) {
           console.error('Erro ao processar arquivo:', err);
-          alert('Erro ao processar o arquivo Excel.');
+          alert(`Erro ao processar o arquivo Excel: ${err.message}`);
           setLoading(false);
         } finally {
           if (fileInputRef.current) fileInputRef.current.value = '';
         }
       };
 
-      reader.readAsBinaryString(file);
+      reader.readAsArrayBuffer(file);
 
     } catch (error) {
       console.error('Error importing file:', error);
