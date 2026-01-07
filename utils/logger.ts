@@ -22,6 +22,8 @@ export const logAction = async (action: string, target: string, details?: string
 
         if (error) {
             console.error('Error logging action:', error);
+        } else {
+            console.log('Action logged successfully:', { action, target });
         }
     } catch (error) {
         console.error('Unexpected error logging action:', error);
