@@ -31,6 +31,12 @@ function App() {
           email: data.email || prev.email,
           systemRole: data.role as 'admin' | 'user'
         }));
+      } else {
+        // User authenticated in Supabase Auth but not in 'usuarios' table
+        console.warn('Access Denied: User record not found.');
+        alert('Acesso Negado: Seu usuário não possui permissão de acesso ou foi removido.');
+        await supabase.auth.signOut();
+        setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);

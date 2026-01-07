@@ -58,6 +58,21 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
     }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (window.confirm('Tem certeza que deseja cancelar o acesso deste usuário? Ele não poderá mais acessar o sistema.')) {
+      try {
+        const { error } = await supabase.from('usuarios').delete().eq('id', userId);
+        if (error) throw error;
+
+        alert('Acesso cancelado com sucesso.');
+        fetchUsers();
+      } catch (error: any) {
+        console.error('Error deleting user:', error);
+        alert('Erro ao cancelar acesso: ' + (error.message || 'Erro desconhecido'));
+      }
+    }
+  };
+
   const handleSavePassword = () => {
     if (!passwords.new || !passwords.confirm) {
       alert('Por favor, preencha todos os campos.');
@@ -247,6 +262,7 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
                           <th className="px-6 py-3">Email</th>
                           <th className="px-6 py-3">Função</th>
                           <th className="px-6 py-3 text-right">Cadastrado em</th>
+                          <th className="px-6 py-3 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -263,11 +279,23 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
                             <td className="px-6 py-3 text-right text-xs">
                               —
                             </td>
+                            <td className="px-6 py-3 text-right">
+                              {user.role !== 'admin' && (
+                                <button
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="text-red-500 hover:text-red-700 font-medium text-xs flex items-center justify-end gap-1 ml-auto"
+                                  title="Cancelar Acesso"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">person_remove</span>
+                                  Cancelar
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                         {usersList.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-6 py-8 text-center text-gray-400">
+                            <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
                               Nenhum usuário encontrado.
                             </td>
                           </tr>
@@ -325,8 +353,8 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
             )}
           </div>
         </section>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 
