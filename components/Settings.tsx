@@ -42,7 +42,11 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
 
     try {
       const { data, error } = await supabase.functions.invoke('invite-user', {
-        body: { email: inviteEmail, name: inviteName }
+        body: {
+          email: inviteEmail,
+          name: inviteName,
+          redirectTo: window.location.origin
+        }
       });
 
       if (error) throw error;
