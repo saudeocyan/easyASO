@@ -60,7 +60,8 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
       setInviteName('');
       fetchUsers(); // Refresh list
     } catch (error: any) {
-      alert('Erro ao enviar convite: ' + (error.message || 'Erro desconhecido'));
+      console.error('Full Invite Error:', error);
+      alert('Erro ao enviar convite: ' + (typeof error === 'object' ? JSON.stringify(error) : error.message || String(error)));
     } finally {
       setLoadingInvite(false);
     }
