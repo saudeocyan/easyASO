@@ -7,13 +7,6 @@ export const NAV_ITEMS: { id: ViewState; label: string; icon: string }[] = [
   { id: 'settings', label: 'Configurações', icon: 'settings' },
 ];
 
-export const IMAGE_URLS = {
-  ana: "https://lh3.googleusercontent.com/aida-public/AB6AXuDp_y1wqr0P-NhWuntq1m0nwLhizkSF-nMwgrolYJNin0e6vVyz0jmxLku-Kn2fAJ3ux0qGfIgGZzsO8_oQgVt41pDjWzhXFiqnmfUUL3ynzhAqBYccC8Em-OrYkzY7vpLptX8fK5MBIB6Sh25SrvUX5ATvacmuTH_iPEYAicDKXRIJxMT7EIhA_WBzi7mBMkzVE_lhsgE5oE8J3L4qtJHL5vhJbDdrT7swcBUqoq8goE1RAWcqS-IU6jgcjtucSaAaAeWw13UGH6va",
-  carlos: "https://lh3.googleusercontent.com/aida-public/AB6AXuBjV2_vLcIaERJ2dZLvpNMKt68u-2mTILp-KcdJkkoddi4QhVBbxv9qpBOLs7ZobixIw4cZi54fZhFulp7sdqfyfGOcYTWMjZdhW_kkpyg86Pig9W-yPXlSZ7aqcPWlBWnZJ4_b-PqhnmK-P_OqwJTpVSx41ReCVEMnRXU09HthewrS9klqvofLyv_ILh9I0BmrR-W0qzJNpK8gyBTgvNVOTmhJLacrDSxiB0_kq0Qv6euLkA08NnFuPSs4SDyk5gMQDF-zQVHt1SZh",
-  jorge: "https://lh3.googleusercontent.com/aida-public/AB6AXuCqBxlRs1g0bRxneAQouvJl_ztUA7932G-DrEwqUsQtNoA2uasm3BVbOM14oKQ8w2VP5e3D8UCfrKwLfXb9_7lHnOHf38ZujPkypweZDLCsa2i3BY-AK3Kkrhp-NjsM6vVDUwP-KNNGKAuXTgPit_a3mco0tkxb-nGJdO9nzeFGJCmQdA4S8JPHo0Hgwul9G9hyNPsH4cKRyrerbY4ZYD2__MGjYBy9pptefpgYusByQpLoC7g4bP6ABWylH0e8FN8HcvDE7jN43tPv",
-  beatriz: "https://lh3.googleusercontent.com/aida-public/AB6AXuDwIg1ywtmsTF7qz3Gv2e2K7to3auS0RiqifFjSnZK6VjpvQF6Gfel9pf5ihs4q9jhd182DkZRMChkdlCHxuZjGdHEYDKXy-UeC2KzzgybbDtcvhWOf_sgQSVSJOXeuZCfRGq_rXJQG5PXBF7ok1TBB0S8vIuoFnA8-ScPQc1dnRLR2AV5CevTbidIhlpX7641gODoN5wMVh_reC794WRYAJmO54grIcEyrUiLvP89xj4pAGLA006OEBnHX8wpuzvSBS-DMPElh2lwQ",
-  admin: "https://lh3.googleusercontent.com/aida-public/AB6AXuCJ_ApFEPxr-d8xGTTHlZ39-2xMn8M9sg0Pn-KwSAfdMTUqXbmPSERXoSaCvsNyKavK4lxfUgIEP9aStBZ2_pegZ9NrME4cwYUVxN7fL-mk9nBbN7iLNdtPzCsi8ZsIjioT7PJI9mJ76Nt2vcohX-YDQv6tPx021KnC9C3pzLcPCT4lcqoIwhBgvMl3cdxJMW9bE7saWeLOM1iuT6ilvvKdFLYyd3hwKcIZmeL7e4aFnc2iVWdlrhzOMOBG0Rf4f0IHRlPtqckZJgwj"
-};
 
 export const MOCK_MEMBERS: Member[] = [
   {
@@ -21,7 +14,9 @@ export const MOCK_MEMBERS: Member[] = [
     name: 'Ana Silva',
     email: 'ana.s@company.com',
     role: 'Enfermeira',
-    avatarUrl: IMAGE_URLS.ana,
+    initials: 'AS',
+    initialsColor: 'text-indigo-600',
+    bgColor: 'bg-indigo-100',
     lastAsoDate: '25/10/2022',
     expirationDate: '25/10/2023',
     status: 'Warning',
@@ -32,7 +27,9 @@ export const MOCK_MEMBERS: Member[] = [
     name: 'Carlos Lima',
     email: 'c.lima@company.com',
     role: 'Médico',
-    avatarUrl: IMAGE_URLS.carlos,
+    initials: 'CL',
+    initialsColor: 'text-teal-600',
+    bgColor: 'bg-teal-100',
     lastAsoDate: '02/11/2022',
     expirationDate: '02/11/2023',
     status: 'Valid',
@@ -43,7 +40,9 @@ export const MOCK_MEMBERS: Member[] = [
     name: 'Jorge M.',
     email: 'jorge.admin@company.com',
     role: 'Admin',
-    avatarUrl: IMAGE_URLS.jorge,
+    initials: 'JM',
+    initialsColor: 'text-purple-600',
+    bgColor: 'bg-purple-100',
     lastAsoDate: '01/12/2022',
     expirationDate: '01/12/2023',
     status: 'Valid',
@@ -54,7 +53,9 @@ export const MOCK_MEMBERS: Member[] = [
     name: 'Beatriz Souza',
     email: 'beatriz.tech@company.com',
     role: 'Técnica',
-    avatarUrl: IMAGE_URLS.beatriz,
+    initials: 'BS',
+    initialsColor: 'text-pink-600',
+    bgColor: 'bg-pink-100',
     lastAsoDate: '15/10/2022',
     expirationDate: '15/10/2023',
     status: 'Expired',
@@ -65,7 +66,6 @@ export const MOCK_MEMBERS: Member[] = [
     name: 'Ricardo Almeida',
     email: 'r.almeida@company.com',
     role: 'Fisioterapeuta',
-    avatarUrl: '',
     initials: 'RA',
     initialsColor: 'text-indigo-600',
     bgColor: 'bg-indigo-100',
@@ -79,7 +79,6 @@ export const MOCK_MEMBERS: Member[] = [
     name: 'Maria Paula',
     email: 'maria.p@company.com',
     role: 'Aux. Enfermagem',
-    avatarUrl: '',
     initials: 'MP',
     initialsColor: 'text-teal-600',
     bgColor: 'bg-teal-100',
@@ -93,7 +92,6 @@ export const MOCK_MEMBERS: Member[] = [
     name: 'Maria Rodriguez',
     email: 'm.rodriguez@company.com',
     role: 'Assistente',
-    avatarUrl: '',
     initials: 'MR',
     initialsColor: 'text-indigo-600',
     bgColor: 'bg-indigo-100',
@@ -178,8 +176,8 @@ export const MOCK_NOTIFICATIONS: NotificationLog[] = [
   {
     id: 'n1',
     actorName: 'Dr. Roberto Silva',
-    actorAvatar: IMAGE_URLS.admin,
     action: 'alterou a data do ASO de',
+    target: 'Maria Paula',
     targetName: 'Maria Paula',
     details: 'para 21/10/2026',
     timestamp: 'Há 10 minutos',
@@ -188,8 +186,8 @@ export const MOCK_NOTIFICATIONS: NotificationLog[] = [
   {
     id: 'n2',
     actorName: 'Jorge M.',
-    actorAvatar: IMAGE_URLS.jorge,
     action: 'criou uma nova convocação para',
+    target: 'Ricardo Almeida',
     targetName: 'Ricardo Almeida',
     details: 'Tipo: Periódico',
     timestamp: 'Há 45 minutos',
@@ -198,8 +196,8 @@ export const MOCK_NOTIFICATIONS: NotificationLog[] = [
   {
     id: 'n3',
     actorName: 'Ana Silva',
-    actorAvatar: IMAGE_URLS.ana,
     action: 'atualizou o cadastro de',
+    target: 'Carlos Lima',
     targetName: 'Carlos Lima',
     details: 'Telefone de contato alterado',
     timestamp: 'Há 2 horas',
@@ -208,8 +206,8 @@ export const MOCK_NOTIFICATIONS: NotificationLog[] = [
   {
     id: 'n4',
     actorName: 'Sistema',
-    actorAvatar: '',
     action: 'gerou alerta de expiração para',
+    target: 'Beatriz Souza',
     targetName: 'Beatriz Souza',
     details: 'Vencimento em 30 dias',
     timestamp: 'Ontem às 14:00',
@@ -218,8 +216,8 @@ export const MOCK_NOTIFICATIONS: NotificationLog[] = [
   {
     id: 'n5',
     actorName: 'Dr. Roberto Silva',
-    actorAvatar: IMAGE_URLS.admin,
     action: 'removeu o documento anexo de',
+    target: 'Maria Rodriguez',
     targetName: 'Maria Rodriguez',
     timestamp: 'Ontem às 09:15',
     type: 'delete'
@@ -231,5 +229,4 @@ export const INITIAL_PROFILE: UserProfile = {
   email: 'roberto.silva@easyaso.com',
   role: 'Administrador',
   medicalLicense: '123456-SP',
-  photoUrl: IMAGE_URLS.admin
 };

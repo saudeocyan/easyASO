@@ -1,71 +1,125 @@
-import React, { useState, useMemo } from 'react';
-import { MOCK_MEMBERS } from '../constants';
-import { ViewState } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import { ViewState, Member } from '../types';
 
 interface DashboardProps {
-    onChangeView: (view: ViewState) => void;
+  onChangeView: (view: ViewState) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
-  const [selectedYear, setSelectedYear] = useState<number>(2023);
-  const years = [2022, 2023, 2024, 2025, 2026];
+  const [members, setMembers] = useState<Member[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Helper to parse "dd/mm/yyyy"
+  // Fetch Data
+  useEffect(() => {
+    const fetchMembers = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('integrantes_status_view') // Fetching from view to get status calculation if needed, though simpler fetch from table was requested, view has all data + status
+          .select('*');
+
+        if (error) throw error;
+
+        // Map DB data to Member interface
+        const mappedMembers: Member[] = (data || []).map((m: any) => ({
+          id: m.id,
+          name: m.nome,
+          email: m.email,
+          role: m.cargo,
+          unit: m.unidade, // mapped to unit below
+          lastAsoDate: m.data_ultimo_aso ? new Date(m.data_ultimo_aso).toLocaleDateString() : 'N/A',
+          expirationDate: m.data_vencimento ? new Date(m.data_vencimento).toLocaleDateString() : 'N/A',
+          status:
+            m.status === 'Vencido' ? 'Expired' :
+              m.status === 'Convocar Urgente' ? 'Urgent' :
+                m.status === 'Próximo do Vencimento' ? 'Warning' : 'Valid',
+          unit: m.unidade,
+          // Initials generation
+          initials: m.nome.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+          initialsColor: 'text-white',
+          bgColor: 'bg-primary'
+        }));
+
+        setMembers(mappedMembers);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMembers();
+  }, []);
+
+  // Helper to parse "dd/mm/yyyy" to Date object
   const parseDate = (dateStr: string) => {
+    if (!dateStr || dateStr === 'N/A') return null;
     const parts = dateStr.split('/');
     if (parts.length === 3) {
       return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
     }
-    return new Date();
+    return null;
   };
 
-  // Filter Data based on Year
-  const yearData = useMemo(() => {
-    return MOCK_MEMBERS.filter(m => {
-      const asoDate = parseDate(m.lastAsoDate);
-      const expDate = parseDate(m.expirationDate);
-      // Include if the exam was done in selected year OR expires in selected year
-      return asoDate.getFullYear() === selectedYear || expDate.getFullYear() === selectedYear;
+  // Determine Available Years dynamically
+  const years = useMemo(() => {
+    const uniqueYears = new Set<number>();
+    members.forEach(m => {
+      const date = parseDate(m.lastAsoDate);
+      if (date) {
+        uniqueYears.add(date.getFullYear());
+      }
     });
-  }, [selectedYear]);
+    // Ensure current year is always an option
+    uniqueYears.add(new Date().getFullYear());
+    return Array.from(uniqueYears).sort((a, b) => b - a); // Descending
+  }, [members]);
 
-  // Calculate Monthly Stats for the Chart (Based on lastAsoDate - "Exames Realizados")
+  // Filter Data based on Year (Exames Realizados in selected Year)
+  const yearData = useMemo(() => {
+    return members.filter(m => {
+      const asoDate = parseDate(m.lastAsoDate);
+      // Filter logic: Show exams performed in the selected year
+      return asoDate && asoDate.getFullYear() === selectedYear;
+    }).sort((a, b) => {
+      // Sort descending by lastAsoDate
+      const dateA = parseDate(a.lastAsoDate);
+      const dateB = parseDate(b.lastAsoDate);
+      return (dateB?.getTime() || 0) - (dateA?.getTime() || 0);
+    });
+  }, [selectedYear, members]);
+
+  // Calculate Monthly Stats for the Chart (Based on lastAsoDate)
   const monthlyStats = useMemo(() => {
     const stats = new Array(12).fill(0);
-    MOCK_MEMBERS.forEach(m => {
+    members.forEach(m => {
       const date = parseDate(m.lastAsoDate);
-      if (date.getFullYear() === selectedYear) {
+      if (date && date.getFullYear() === selectedYear) {
         stats[date.getMonth()]++;
       }
     });
-    // Adding some dummy data if empty to demonstrate the chart visualization since mock data is small
-    if (stats.every(v => v === 0)) {
-       // Simulate distribution for visual demonstration if no exact matches in mock
-       return [4, 8, 3, 12, 6, 5, 9, 15, 7, 10, 4, 2]; 
-    }
     return stats;
-  }, [selectedYear]);
+  }, [selectedYear, members]);
 
   const maxStatValue = Math.max(...monthlyStats, 1);
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
   // KPIs Calculations
   const totalExams = monthlyStats.reduce((a, b) => a + b, 0);
-  const expiringInYear = yearData.filter(m => parseDate(m.expirationDate).getFullYear() === selectedYear).length;
-  
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'Warning': return 'Atenção';
-      case 'Valid': return 'Válido';
-      case 'Expired': return 'Vencido';
-      default: return status;
-    }
-  };
+
+  // Vencimentos logic: Count members whose expiration date is in the selected year
+  const expiringInYear = members.filter(m => {
+    const expDate = parseDate(m.expirationDate);
+    return expDate && expDate.getFullYear() === selectedYear;
+  }).length;
+
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        
+
         {/* Header Controls */}
         <div className="flex justify-between items-center">
           <div>
@@ -75,8 +129,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-text-secondary">Ano de Referência:</span>
             <div className="relative">
-              <select 
-                value={selectedYear} 
+              <select
+                value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                 className="appearance-none bg-white border border-gray-200 text-secondary py-2 pl-4 pr-10 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer shadow-sm"
               >
@@ -127,7 +181,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
           <h3 className="text-lg font-bold text-secondary mb-6">Distribuição de Exames Realizados ({selectedYear})</h3>
           <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 px-2">
             {monthlyStats.map((value, index) => {
-              const heightPercentage = (value / maxStatValue) * 100;
+              const heightPercentage = maxStatValue > 0 ? (value / maxStatValue) * 100 : 0;
               return (
                 <div key={index} className="flex flex-col items-center flex-1 h-full justify-end group cursor-pointer">
                   <div className="relative w-full flex justify-end flex-col items-center h-full">
@@ -137,8 +191,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
                       <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-secondary"></div>
                     </div>
                     {/* Bar */}
-                    <div 
-                      style={{ height: `${heightPercentage}%` }} 
+                    <div
+                      style={{ height: `${heightPercentage}%` }}
                       className={`w-full max-w-[40px] rounded-t-sm transition-all duration-500 ease-out relative
                         ${value === 0 ? 'bg-gray-100 min-h-[4px]' : 'bg-primary hover:bg-primary-dark'}
                       `}
@@ -155,15 +209,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
         {/* Table Section (Expanded to full width) */}
         <div className="flex flex-col gap-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-secondary">Integrantes do Ano ({selectedYear})</h3>
-            <button 
+            <h3 className="text-lg font-bold text-secondary">Últimos Exames</h3>
+            <button
               onClick={() => onChangeView('members')}
               className="text-primary text-sm font-medium hover:text-primary-dark transition-colors"
             >
               Gerenciar Integrantes
             </button>
           </div>
-          
+
           <div className="bg-white border border-gray-200 rounded-xl shadow-soft overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -173,20 +227,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
                     <th className="px-6 py-4 font-semibold">Cargo</th>
                     <th className="px-6 py-4 font-semibold">Unidade</th>
                     <th className="px-6 py-4 font-semibold">Último ASO</th>
-                    <th className="px-6 py-4 font-semibold">Vencimento</th>
-                    <th className="px-6 py-4 font-semibold text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
-                  {yearData.length > 0 ? (
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-text-secondary">Carregando dados...</td>
+                    </tr>
+                  ) : yearData.length > 0 ? (
                     yearData.map((member) => (
                       <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div 
-                              className="w-8 h-8 rounded-full bg-gray-200 bg-cover bg-center" 
-                              style={{ backgroundImage: `url('${member.avatarUrl}')` }}
-                            ></div>
+                            <div
+                              className={`w-8 h-8 rounded-full ${member.bgColor || 'bg-gray-200'} ${member.initialsColor || 'text-gray-600'} flex items-center justify-center font-bold text-xs`}
+                            >
+                              {member.initials || member.name.substring(0, 2).toUpperCase()}
+                            </div>
                             <div>
                               <p className="font-medium text-secondary">{member.name}</p>
                               <p className="text-xs text-text-secondary">{member.email}</p>
@@ -196,21 +253,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
                         <td className="px-6 py-4 text-text-secondary">{member.role}</td>
                         <td className="px-6 py-4 text-text-secondary">{member.unit}</td>
                         <td className="px-6 py-4 text-text-secondary">{member.lastAsoDate}</td>
-                        <td className="px-6 py-4 font-medium text-secondary">{member.expirationDate}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
-                            ${member.status === 'Warning' ? 'bg-status-warning/10 text-status-warning border-status-warning/20' : 
-                              member.status === 'Valid' ? 'bg-status-success/10 text-status-success border-status-success/20' : 
-                              'bg-status-danger/10 text-status-danger border-status-danger/20'}`}>
-                            {getStatusLabel(member.status)}
-                          </span>
-                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-text-secondary">
-                        Nenhum registro encontrado para o ano de {selectedYear}.
+                      <td colSpan={4} className="px-6 py-8 text-center text-text-secondary">
+                        Nenhum exame encontrado para o ano de {selectedYear}.
                       </td>
                     </tr>
                   )}

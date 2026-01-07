@@ -58,10 +58,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, userProfil
 
         <div className="mt-6 flex items-center justify-between px-2">
           <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-10 h-10 rounded-full bg-cover bg-center border-2 border-primary flex-shrink-0"
-              style={{ backgroundImage: `url('${userProfile.photoUrl}')` }}
-            ></div>
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary flex-shrink-0">
+              <span className="text-primary font-bold text-sm">RS</span>
+            </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-semibold text-white truncate text-left">{userProfile.name}</span>
               <span className="text-xs text-gray-400 text-left">Admin</span>

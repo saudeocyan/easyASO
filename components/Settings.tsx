@@ -105,13 +105,16 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
               // --- VIEW MODE: PROFILE ---
               <>
                 <div className="flex flex-col items-center mb-8 animate-in fade-in slide-in-from-left-4 duration-300">
-                  <div
-                    className="w-32 h-32 rounded-full bg-cover bg-center border-4 border-gray-50 shadow-inner mb-4"
-                    style={{ backgroundImage: `url('${profile.photoUrl}')` }}
-                  ></div>
+                  <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center border-4 border-gray-50 shadow-inner mb-4">
+                    <span className="text-4xl font-bold text-primary">
+                      {profile.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  {/* Removed Change Photo button */}{/* 
                   <button className="text-sm font-medium text-primary hover:text-primary-dark transition-colors">
                     Alterar Foto
-                  </button>
+                  </button> 
+                  */}
                 </div>
 
                 <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300 delay-75">
