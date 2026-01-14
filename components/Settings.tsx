@@ -18,6 +18,7 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
   const [profile] = useState(userProfile);
   const [viewMode, setViewMode] = useState<'profile' | 'password' | 'access'>('profile');
   const [passwords, setPasswords] = useState({ new: '', confirm: '' });
+  const [loadingPassword, setLoadingPassword] = useState(false);
 
   // Invite Flow State
   const [inviteEmail, setInviteEmail] = useState('');
@@ -83,9 +84,23 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
     }
   };
 
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     if (!passwords.new || !passwords.confirm) {
       alert('Por favor, preencha todos os campos.');
+      return;
+    }
+
+    if (passwords.new.length < 8) {
+      alert('A nova senha deve ter pelo menos 8 caracteres.');
+      return;
+    }
+
+    // Check for letters and numbers
+    const hasLetters = /[a-zA-Z]/.test(passwords.new);
+    const hasNumbers = /[0-9]/.test(passwords.new);
+
+    if (!hasLetters || !hasNumbers) {
+      alert('A nova senha deve conter letras e números.');
       return;
     }
 
@@ -94,10 +109,25 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
       return;
     }
 
-    // Mock API call
-    alert('Senha alterada com sucesso!');
-    setPasswords({ new: '', confirm: '' });
-    setViewMode('profile');
+    setLoadingPassword(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwords.new
+      });
+
+      if (error) throw error;
+
+      alert('Senha alterada com sucesso!');
+      await logAction('change_password', 'Usuário alterou sua própria senha', 'Sucesso');
+      setPasswords({ new: '', confirm: '' });
+      setViewMode('profile');
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      alert('Erro ao alterar senha: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setLoadingPassword(false);
+    }
   };
 
   const handleCancelPassword = () => {
@@ -353,10 +383,15 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
                 {viewMode === 'password' && (
                   <button
                     onClick={handleSavePassword}
-                    className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-colors flex items-center gap-2"
+                    disabled={loadingPassword}
+                    className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                    Confirmar Alteração
+                    {loadingPassword ? (
+                      <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                    )}
+                    {loadingPassword ? 'Alterando...' : 'Confirmar Alteração'}
                   </button>
                 )}
               </>
