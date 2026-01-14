@@ -62,7 +62,22 @@ const Settings: React.FC<SettingsProps> = ({ userProfile }) => {
       fetchUsers(); // Refresh list
     } catch (error: any) {
       console.error('Full Invite Error:', error);
-      alert('Erro ao enviar convite: ' + (typeof error === 'object' ? JSON.stringify(error) : error.message || String(error)));
+
+      let errorMessage = error.message || 'Erro desconhecido';
+
+      // Check if we have a response body with a specific error message
+      if (error && error.context && typeof error.context.json === 'function') {
+        try {
+          const body = await error.context.json();
+          if (body && body.error) {
+            errorMessage = body.error;
+          }
+        } catch (e) {
+          console.error('Error parsing response body:', e);
+        }
+      }
+
+      alert(`Erro: ${errorMessage}`);
     } finally {
       setLoadingInvite(false);
     }
