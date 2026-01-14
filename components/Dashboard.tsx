@@ -234,7 +234,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
                       <td colSpan={4} className="px-6 py-8 text-center text-text-secondary">Carregando dados...</td>
                     </tr>
                   ) : yearData.length > 0 ? (
-                    yearData.map((member) => (
+                    yearData.slice(0, 10).map((member) => (
                       <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">

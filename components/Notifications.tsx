@@ -67,6 +67,84 @@ const Notifications: React.FC = () => {
     fetchLogs();
   }, []);
 
+  // Helper to format log messages
+  const formatLogMessage = (log: NotificationLog) => {
+    const actor = <span className="font-semibold text-secondary">{log.actorName || 'Sistema'}</span>;
+    const target = <span className="font-semibold text-secondary">{log.targetName}</span>;
+
+    const actionKey = log.action.toLowerCase();
+
+    if (actionKey === 'aso_launch') {
+      return (
+        <>
+          {actor} registrou um novo ASO para {target}.
+        </>
+      );
+    }
+
+    if (actionKey === 'create' || actionKey === 'create_member') {
+      return (
+        <>
+          {actor} cadastrou o novo integrante {target}.
+        </>
+      );
+    }
+
+    if (actionKey === 'delete' || actionKey === 'delete_member') {
+      return (
+        <>
+          {actor} excluiu o integrante {target}.
+        </>
+      );
+    }
+
+    if (actionKey === 'update' || actionKey === 'edit' || actionKey === 'edit_member') {
+      return (
+        <>
+          {actor} atualizou os dados de {target}.
+        </>
+      );
+    }
+
+    if (actionKey === 'invite_user') {
+      return (
+        <>
+          {actor} convidou o usuário {target} para o sistema.
+        </>
+      );
+    }
+
+    // Default fallback
+    return (
+      <>
+        {actor} realizou a ação <span className="text-text-secondary italic">{log.action}</span> em {target}.
+      </>
+    );
+  };
+
+  // Helper to get Icon based on action
+  const getActionIcon = (type: string, action: string) => {
+    const act = action.toLowerCase();
+    if (act === 'aso_launch') return 'medical_services';
+    if (act === 'invite_user') return 'mail';
+
+    if (type === 'create') return 'person_add';
+    if (type === 'delete') return 'delete';
+    if (type === 'edit') return 'edit';
+    return 'priority_high'; // Default
+  }
+
+  // Helper to get Color based on action
+  const getActionColor = (type: string, action: string) => {
+    const act = action.toLowerCase();
+    if (act === 'aso_launch') return 'bg-blue-100 text-blue-600';
+
+    if (type === 'create') return 'bg-green-100 text-green-600';
+    if (type === 'delete') return 'bg-red-100 text-red-600';
+    if (type === 'edit') return 'bg-orange-100 text-orange-600';
+    return 'bg-gray-100 text-gray-600';
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-8">
       <div className="max-w-3xl mx-auto">
@@ -99,27 +177,16 @@ const Notifications: React.FC = () => {
                       {(notification.actorName || '?').substring(0, 2).toUpperCase()}
                     </div>
                     <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center
-                    ${notification.type === 'edit' ? 'bg-blue-100 text-blue-600' :
-                        notification.type === 'create' ? 'bg-green-100 text-green-600' :
-                          notification.type === 'delete' ? 'bg-red-100 text-red-600' :
-                            'bg-orange-100 text-orange-600'
-                      }`}>
+                    ${getActionColor(notification.type, notification.action)}`}>
                       <span className="material-symbols-outlined text-[10px] font-bold">
-                        {notification.type === 'edit' ? 'edit' :
-                          notification.type === 'create' ? 'add' :
-                            notification.type === 'delete' ? 'delete' : 'priority_high'}
+                        {getActionIcon(notification.type, notification.action)}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-secondary leading-relaxed">
-                      <span className="font-semibold text-secondary">{notification.actorName}</span>{' '}
-                      <span className="text-text-secondary">{notification.action}</span>{' '}
-                      <span className="font-semibold text-secondary">{notification.targetName}</span>
-                      {notification.details && (
-                        <span className="text-text-secondary"> {notification.details}</span>
-                      )}
+                      {formatLogMessage(notification)}
                     </p>
                     <span className="text-xs text-text-secondary mt-1 block flex items-center gap-1">
                       <span className="material-symbols-outlined text-[12px]">schedule</span>

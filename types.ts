@@ -14,7 +14,8 @@ export interface Member extends User {
   cpf?: string; // mapped from DB 'cpf'
   lastAsoDate: string; // mapped from DB 'data_ultimo_aso'
   expirationDate: string; // mapped from DB view 'data_vencimento'
-  status: 'Valid' | 'Warning' | 'Expired' | 'Urgent'; // mapped from DB view 'status'
+
+  status: 'Valid' | 'Warning' | 'Expired' | 'Urgent' | 'Summon' | 'Near'; // mapped from DB view 'status'
   unit: string; // kept for compatibility, will map 'unidade' to this
 }
 

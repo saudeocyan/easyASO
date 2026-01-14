@@ -20,6 +20,7 @@ const Integrantes: React.FC = () => {
 
   // View Details State
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [asoHistory, setAsoHistory] = useState<any[]>([]);
 
   // Action Menu State
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -32,10 +33,20 @@ const Integrantes: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState<Partial<Member>>({
     name: '',
+    cpf: '',
     email: '',
     role: '',
     unit: '',
     lastAsoDate: ''
+  });
+
+  // Launch ASO State
+  const [isLaunchAsoModalOpen, setIsLaunchAsoModalOpen] = useState(false);
+  const [asoTargetMember, setAsoTargetMember] = useState<Member | null>(null);
+  const [asoForm, setAsoForm] = useState({
+    date: '',
+    type: 'Periódico',
+    obs: ''
   });
 
   // File Upload Reference
@@ -63,6 +74,26 @@ const Integrantes: React.FC = () => {
 
       if (error) throw error;
 
+
+
+      const calculateStatus = (dateStr: string | null): Member['status'] => {
+        if (!dateStr) return 'Expired'; // Or Urgent? Assuming expired if no date or old logic.
+
+        // dateStr comes as YYYY-MM-DD from view usually, or we can use the JS Date
+        const today = new Date();
+        const expiration = new Date(dateStr);
+
+        // Calculate difference in days
+        const diffTime = expiration.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) return 'Expired';
+        if (diffDays < 30) return 'Urgent';
+        if (diffDays < 60) return 'Summon';
+        if (diffDays < 90) return 'Near';
+        return 'Valid';
+      };
+
       // Map DB columns to Frontend types if needed (view matches mostly)
       const mappedMembers: Member[] = (data || []).map((m: any) => ({
         ...m,
@@ -72,7 +103,7 @@ const Integrantes: React.FC = () => {
         cpf: m.cpf,
         lastAsoDate: m.data_ultimo_aso ? new Date(m.data_ultimo_aso).toLocaleDateString('pt-BR') : '-',
         expirationDate: m.data_vencimento ? new Date(m.data_vencimento).toLocaleDateString('pt-BR') : '-',
-        status: m.status
+        status: calculateStatus(m.data_vencimento)
       }));
 
       setMembers(mappedMembers);
@@ -113,6 +144,9 @@ const Integrantes: React.FC = () => {
       case 'Warning': return 'Atenção';
       case 'Valid': return 'Válido';
       case 'Expired': return 'Vencido';
+      case 'Urgent': return 'Urgente';
+      case 'Summon': return 'Convocar';
+      case 'Near': return 'Próximo do Vencimento';
       default: return status;
     }
   };
@@ -161,8 +195,40 @@ const Integrantes: React.FC = () => {
         email: editForm.email,
         cargo: editForm.role,
         unidade: editForm.unit,
-        // Convert DD/MM/YYYY to YYYY-MM-DD
-        data_ultimo_aso: editForm.lastAsoDate?.split('/').reverse().join('-')
+        data_ultimo_aso: (() => {
+          if (!editForm.lastAsoDate) return null;
+          // Clean the string
+          const raw = editForm.lastAsoDate.trim();
+
+          // Case 1: DD/MM/YYYY (most likely from input mask/placeholder)
+          if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
+            const parts = raw.split('/');
+            // Ensure YYYY-MM-DD
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
+          // Case 2: YYYY-MM-DD (already ISO)
+          if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+            return raw;
+          }
+
+          // Fallback: try Date parse but be careful with timezones or US format if not ISO
+          // If we can't parse it confidently, might return original or null.
+          // For now, let's stick to the manual swap if it looks like date.
+
+          // Attempt default split if matches patterns like d-m-y
+          const parts = raw.split(/[-/]/);
+          if (parts.length === 3) {
+            // Assume day first if year is last (common in BR)
+            if (parts[2].length === 4) {
+              return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+            // Assume year first
+            if (parts[0].length === 4) {
+              return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            }
+          }
+          return null;
+        })()
       };
 
       const { error } = await supabase
@@ -197,14 +263,15 @@ const Integrantes: React.FC = () => {
 
   const handleCreateSave = async () => {
     // Basic validation
-    if (!newMemberForm.name || !newMemberForm.email || !newMemberForm.role) {
-      alert("Por favor, preencha os campos obrigatórios (Nome, Email, Cargo).");
+    if (!newMemberForm.name || !newMemberForm.email || !newMemberForm.role || !newMemberForm.cpf) {
+      alert("Por favor, preencha os campos obrigatórios (Nome, CPF, Email, Cargo).");
       return;
     }
 
     try {
       const newMember = {
         nome: newMemberForm.name,
+        cpf: newMemberForm.cpf.replace(/\D/g, ''), // Clean CPF
         email: newMemberForm.email,
         cargo: newMemberForm.role,
         unidade: newMemberForm.unit || 'Matriz',
@@ -225,6 +292,7 @@ const Integrantes: React.FC = () => {
       setIsCreateModalOpen(false);
       setNewMemberForm({
         name: '',
+        cpf: '',
         email: '',
         role: '',
         unit: '',
@@ -237,13 +305,134 @@ const Integrantes: React.FC = () => {
     }
   };
 
-  // Helper to generate mock history based on the current member
-  const getMemberHistory = (member: Member) => {
-    return [
-      { date: member.lastAsoDate, type: 'Periódico', status: 'Concluído', current: true },
-      { date: '15/10/2021', type: 'Periódico', status: 'Concluído', current: false },
-      { date: '10/10/2020', type: 'Admissional', status: 'Concluído', current: false },
-    ];
+  // --- Launch ASO Handlers ---
+
+  const handleLaunchAsoInit = (e: React.MouseEvent, member: Member) => {
+    e.stopPropagation();
+    setAsoTargetMember(member);
+    setAsoForm({
+      date: new Date().toISOString().split('T')[0], // Default today
+      type: 'Periódico',
+      obs: ''
+    });
+    setIsLaunchAsoModalOpen(true);
+    setActiveMenuId(null);
+  };
+
+  const handleLaunchAsoSave = async () => {
+    if (!asoTargetMember || !asoForm.date || !asoForm.type) {
+      alert("Por favor, preencha a data e o tipo.");
+      return;
+    }
+
+    try {
+      // 1. Update Member's last ASO date
+      const { error: updateError } = await supabase
+        .from('integrantes')
+        .update({ data_ultimo_aso: asoForm.date })
+        .eq('id', asoTargetMember.id);
+
+      if (updateError) throw updateError;
+
+      // 2. Log Action
+      await logAction(
+        'aso_launch',
+        `Integrante: ${asoTargetMember.name}`,
+        `Lançamento de ASO ${asoForm.type} em ${asoForm.date}. Obs: ${asoForm.obs}`
+      );
+
+      alert('ASO lançado com sucesso!');
+
+      // 3. Refresh & Close
+      fetchMembers();
+      setIsLaunchAsoModalOpen(false);
+      setAsoTargetMember(null);
+      setAsoForm({ date: '', type: 'Periódico', obs: '' });
+
+    } catch (error) {
+      console.error('Error launching ASO:', error);
+      alert('Erro ao lançar ASO.');
+    }
+  };
+
+  // Fetch member history from audit logs
+  useEffect(() => {
+    if (selectedMember) {
+      fetchMemberHistory(selectedMember);
+    }
+  }, [selectedMember]);
+
+  const fetchMemberHistory = async (member: Member) => {
+    try {
+      // 1. Fetch logs
+      const { data: logs, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('action', 'aso_launch')
+        .eq('target', `Integrante: ${member.name}`)
+        .order('timestamp', { ascending: false });
+
+      if (error) throw error;
+
+      // 2. Parse logs
+      const historyFromLogs = (logs || []).map(log => {
+        // Regex to extract Type and Date: "Lançamento de ASO {Type} em {YYYY-MM-DD}..."
+        // Supports old format with "por Dr..." and new format without it.
+        const match = log.details.match(/Lançamento de ASO (.+) em (\d{4}-\d{2}-\d{2})/);
+        if (match) {
+          const [_, type, dateISO] = match;
+          const [year, month, day] = dateISO.split('-');
+          const dateFormatted = `${day}/${month}/${year}`;
+          return {
+            date: dateFormatted,
+            type: type,
+            status: 'Concluído',
+            logId: log.id,
+            timestamp: new Date(log.timestamp).getTime()
+          };
+        }
+        return null; // Should not happen if format is consistent
+      }).filter(Boolean) as any[];
+
+      // 3. Merge with current 'lastAsoDate' from Member record (which might come from Excel import)
+      // We want to ensure the "Current" date displayed in the table is also in the history.
+      const combinedHistory = [...historyFromLogs];
+
+      if (member.lastAsoDate && member.lastAsoDate !== '-') {
+        // Check if this date (DD/MM/YYYY) is already in the logs
+        const existsInLogs = historyFromLogs.some(h => h.date === member.lastAsoDate);
+
+        if (!existsInLogs) {
+          // If not in logs (e.g. from Excel), add it. 
+          // We assume it's the latest if the logic holds, or we just sort by date.
+          // Since we don't know the exact timestamp, we create one from the date string.
+          const [d, m, y] = member.lastAsoDate.split('/');
+          const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+
+          combinedHistory.push({
+            date: member.lastAsoDate,
+            type: 'Importado', // Indicate source
+            status: 'Concluído',
+            isImported: true,
+            timestamp: dateObj.getTime()
+          });
+        }
+      }
+
+      // 4. Sort by timestamp descending
+      combinedHistory.sort((a, b) => b.timestamp - a.timestamp);
+
+      // 5. Mark top as current
+      const finalHistory = combinedHistory.map((h, idx) => ({
+        ...h,
+        current: idx === 0
+      }));
+
+      setAsoHistory(finalHistory);
+
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    }
   };
 
   // --- Excel Import Handler ---
@@ -400,7 +589,9 @@ const Integrantes: React.FC = () => {
                       >
                         <option value="">Todos</option>
                         <option value="Valid">Válido</option>
-                        <option value="Warning">Atenção</option>
+                        <option value="Near">Próximo do Vencimento</option>
+                        <option value="Summon">Convocar</option>
+                        <option value="Urgent">Urgente</option>
                         <option value="Expired">Vencido</option>
                       </select>
                     </div>
@@ -504,9 +695,11 @@ const Integrantes: React.FC = () => {
                     <td className="px-6 py-4 font-medium text-secondary">{member.expirationDate}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
-                         ${member.status === 'Warning' ? 'bg-status-warning/10 text-status-warning border-status-warning/20' :
-                          member.status === 'Valid' ? 'bg-status-success/10 text-status-success border-status-success/20' :
-                            'bg-status-danger/10 text-status-danger border-status-danger/20'}`}>
+                         ${member.status === 'Urgent' ? 'bg-red-100 text-red-800 border-red-200' :
+                          member.status === 'Expired' ? 'bg-red-50 text-red-600 border-red-100' :
+                            member.status === 'Summon' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                              member.status === 'Near' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                'bg-green-100 text-green-800 border-green-200'}`}>
                         {getStatusLabel(member.status)}
                       </span>
                     </td>
@@ -527,6 +720,13 @@ const Integrantes: React.FC = () => {
                           >
                             <span className="material-symbols-outlined text-[1.1rem] text-text-secondary">edit</span>
                             Editar Dados
+                          </button>
+                          <button
+                            onClick={(e) => handleLaunchAsoInit(e, member)}
+                            className="w-full text-left px-4 py-3 text-sm text-text-main hover:bg-gray-50 flex items-center gap-2 transition-colors border-t border-gray-50 bg-primary/5 hover:bg-primary/10"
+                          >
+                            <span className="material-symbols-outlined text-[1.1rem] text-primary">medical_services</span>
+                            <span className="text-primary font-medium">Lançar ASO</span>
                           </button>
                           <button
                             onClick={(e) => handleDelete(e, member.id)}
@@ -581,12 +781,12 @@ const Integrantes: React.FC = () => {
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
+              {/* Avatar removed as requested */}
               <div className="absolute -bottom-10 left-8">
-                <div className={`w-24 h-24 rounded-full bg-white p-1 shadow-lg`}>
-                  <div className={`w-full h-full rounded-full ${selectedMember.bgColor} ${selectedMember.initialsColor} flex items-center justify-center font-bold text-3xl`}>
-                    {selectedMember.initials}
-                  </div>
-                </div>
+                {/* Placeholder or just name title style if needed, but for now removing circle content 
+                    User requested to remove circle. I will keep the spacing or just remove the element.
+                    "retire o circulo para 'avatar' que fica em cima do nome"
+                */}
               </div>
             </div>
 
@@ -617,31 +817,107 @@ const Integrantes: React.FC = () => {
                   <div>
                     <h3 className="text-sm font-bold text-secondary uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Histórico de ASOs</h3>
                     <div className="space-y-4">
-                      {getMemberHistory(selectedMember).map((aso, idx) => (
-                        <div key={idx} className="flex items-center gap-4 group">
-                          <div className="flex flex-col items-center">
-                            <div className={`w-3 h-3 rounded-full border-2 ${aso.current ? 'bg-primary border-primary' : 'bg-gray-200 border-gray-300'}`}></div>
-                            {idx !== 2 && <div className="w-0.5 h-10 bg-gray-100 my-1"></div>}
-                          </div>
-                          <div className={`flex-1 p-3 rounded-lg border ${aso.current ? 'bg-primary/5 border-primary/20' : 'bg-white border-gray-100 hover:border-gray-200'} transition-colors`}>
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className={`font-semibold text-sm ${aso.current ? 'text-primary' : 'text-secondary'}`}>{aso.type}</p>
-                                <p className="text-xs text-text-secondary">{aso.date}</p>
+                      {asoHistory.length === 0 ? (
+                        <p className="text-sm text-text-secondary">Nenhum histórico encontrado.</p>
+                      ) : (
+                        asoHistory.map((aso, idx) => (
+                          <div key={idx} className="flex items-center gap-4 group">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-3 h-3 rounded-full border-2 ${aso.current ? 'bg-primary border-primary' : 'bg-gray-200 border-gray-300'}`}></div>
+                              {idx !== asoHistory.length - 1 && <div className="w-0.5 h-10 bg-gray-100 my-1"></div>}
+                            </div>
+                            <div className={`flex-1 p-3 rounded-lg border ${aso.current ? 'bg-primary/5 border-primary/20' : 'bg-white border-gray-100 hover:border-gray-200'} transition-colors`}>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className={`font-semibold text-sm ${aso.current ? 'text-primary' : 'text-secondary'}`}>{aso.type}</p>
+                                  <p className="text-xs text-text-secondary">{aso.date}</p>
+                                </div>
+                                {/* Removed download button for now as per previous mock (no implementation yet) */}
                               </div>
-                              {!aso.current && (
-                                <button className="text-gray-400 hover:text-primary transition-colors" title="Baixar Arquivo Antigo">
-                                  <span className="material-symbols-outlined text-[20px]">file_download</span>
-                                </button>
-                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Launch ASO Modal */}
+      {isLaunchAsoModalOpen && asoTargetMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-secondary/70 backdrop-blur-sm transition-opacity" onClick={() => setIsLaunchAsoModalOpen(false)}></div>
+
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-primary/5">
+              <div>
+                <h3 className="text-lg font-bold text-secondary">Lançar ASO</h3>
+                <p className="text-xs text-text-secondary">Integrante: <span className="font-semibold">{asoTargetMember.name}</span></p>
+              </div>
+              <button onClick={() => setIsLaunchAsoModalOpen(false)} className="text-gray-400 hover:text-secondary">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-text-secondary uppercase">Data do Exame</label>
+                  <input
+                    type="date"
+                    value={asoForm.date}
+                    onChange={(e) => setAsoForm(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-text-secondary uppercase">Tipo de ASO</label>
+                  <select
+                    value={asoForm.type}
+                    onChange={(e) => setAsoForm(prev => ({ ...prev, type: e.target.value }))}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  >
+                    <option value="Periódico">Periódico</option>
+                    <option value="Admissional">Admissional</option>
+                    <option value="Demissional">Demissional</option>
+                    <option value="Retorno ao Trabalho">Retorno ao Trabalho</option>
+                    <option value="Mudança de Função">Mudança de Função</option>
+                  </select>
+                </div>
+              </div>
+
+
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-text-secondary uppercase">Observações</label>
+                <textarea
+                  value={asoForm.obs}
+                  onChange={(e) => setAsoForm(prev => ({ ...prev, obs: e.target.value }))}
+                  placeholder="Observações adicionais..."
+                  rows={3}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button
+                onClick={() => setIsLaunchAsoModalOpen(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-text-secondary hover:bg-white hover:text-secondary transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleLaunchAsoSave}
+                className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[1.2rem]">check</span>
+                Lançar ASO
+              </button>
             </div>
           </div>
         </div>
@@ -754,6 +1030,17 @@ const Integrantes: React.FC = () => {
                   value={newMemberForm.name || ''}
                   onChange={(e) => handleCreateInputChange('name', e.target.value)}
                   placeholder="Ex: João da Silva"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-text-secondary uppercase">CPF</label>
+                <input
+                  type="text"
+                  value={newMemberForm.cpf || ''}
+                  onChange={(e) => handleCreateInputChange('cpf', e.target.value)}
+                  placeholder="000.000.000-00"
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>

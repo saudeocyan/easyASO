@@ -23,7 +23,8 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
   const [isNewMember, setIsNewMember] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [newMemberName, setNewMemberName] = useState('');
-  const [shouldSendEmail, setShouldSendEmail] = useState(true);
+  const [editingConvocationId, setEditingConvocationId] = useState<string | null>(null);
+
   const [email, setEmail] = useState('');
   const [asoType, setAsoType] = useState('Periódico');
 
@@ -109,10 +110,11 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
   // Reset form when modal opens/closes or toggles
   const handleOpenModal = () => {
     setIsNewMember(false);
+    setEditingConvocationId(null);
     setSelectedMemberId('');
     setNewMemberName('');
     setEmail('');
-    setShouldSendEmail(true);
+
     setAsoType('Periódico');
     setIsModalOpen(true);
   };
@@ -160,7 +162,37 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
     setIsModalOpen(false);
   };
 
-  const handleCreate = async () => {
+  const handleEdit = (convocation: Convocation) => {
+    setEditingConvocationId(convocation.id);
+    setIsNewMember(false);
+    setSelectedMemberId(convocation.memberId);
+    setAsoType(convocation.asoType);
+    setEmail(convocation.member?.email || '');
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string, memberName: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir a convocação de ${memberName || 'Desconhecido'}?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('convocations')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      await logAction('delete', `Convocação Excluída: ${memberName}`, 'Convocação removida manualmente');
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting convocation:', error);
+      alert('Erro ao excluir convocação.');
+    }
+  };
+
+  const handleSave = async () => {
     try {
       let memberId = selectedMemberId;
 
@@ -189,21 +221,38 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
         }
       }
 
-      // Create Convocation
-      const { error: convError } = await supabase
-        .from('convocations')
-        .insert({
-          integrante_id: memberId,
-          tipo_aso: asoType,
-          data_convocacao: new Date().toISOString(), // Use ISO string for DB, View handles display
-          status: 'Pending',
-          obs: ''
-        });
+      // Create or Update Convocation
+      if (editingConvocationId) {
+        // Update
+        const { error: convError } = await supabase
+          .from('convocations')
+          .update({
+            integrante_id: memberId,
+            tipo_aso: asoType,
+            // status: 'Pending', // Keep existing status? Or reset? Usually keep.
+            // obs: ''
+          })
+          .eq('id', editingConvocationId);
 
-      if (convError) throw convError;
+        if (convError) throw convError;
+        await logAction('update', `Convocação Atualizada: ${members.find(m => m.id === memberId)?.name || newMemberName}`, `Tipo: ${asoType}`);
+        alert('Convocação atualizada com sucesso!');
+      } else {
+        // Create
+        const { error: convError } = await supabase
+          .from('convocations')
+          .insert({
+            integrante_id: memberId,
+            tipo_aso: asoType,
+            data_convocacao: new Date().toISOString(),
+            status: 'Pending',
+            obs: ''
+          });
 
-      alert('Convocação criada com sucesso!');
-      await logAction('convocation', `Convocação: ${members.find(m => m.id === memberId)?.name || newMemberName}`, `Tipo: ${asoType}`);
+        if (convError) throw convError;
+        await logAction('create', `Nova Convocação: ${members.find(m => m.id === memberId)?.name || newMemberName}`, `Tipo: ${asoType}`);
+        alert('Convocação criada com sucesso!');
+      }
       handleCloseModal();
       fetchData(); // Refresh list
 
@@ -295,10 +344,18 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-1.5 rounded-full text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors">
+                        <button
+                          onClick={() => handleEdit(convocation)}
+                          className="p-1.5 rounded-full text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                          title="Editar"
+                        >
                           <span className="material-symbols-outlined text-[1.25rem]">edit</span>
                         </button>
-                        <button className="p-1.5 rounded-full text-gray-400 hover:text-status-danger hover:bg-status-danger/10 transition-colors ml-1">
+                        <button
+                          onClick={() => handleDelete(convocation.id, convocation.member?.name || '')}
+                          className="p-1.5 rounded-full text-gray-400 hover:text-status-danger hover:bg-status-danger/10 transition-colors ml-1"
+                          title="Excluir"
+                        >
                           <span className="material-symbols-outlined text-[1.25rem]">delete</span>
                         </button>
                       </td>
@@ -329,7 +386,7 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
                 <div className="p-2 bg-primary/10 rounded-lg text-primary">
                   <span className="material-symbols-outlined">campaign</span>
                 </div>
-                <h3 className="text-lg font-bold text-secondary">Nova Convocação</h3>
+                <h3 className="text-lg font-bold text-secondary">{editingConvocationId ? 'Editar Convocação' : 'Nova Convocação'}</h3>
               </div>
               <button onClick={handleCloseModal} className="text-gray-400 hover:text-secondary transition-colors">
                 <span className="material-symbols-outlined">close</span>
@@ -352,7 +409,13 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
                         onChange={(e) => {
                           setIsNewMember(e.target.checked);
                           // Reset fields when toggling
-                          setSelectedMemberId('');
+                          if (!e.target.checked && editingConvocationId) {
+                            // If unchecking 'New Member' while editing, maybe revert to original member?
+                            // For now, let user select.
+                            setSelectedMemberId('');
+                          } else {
+                            setSelectedMemberId('');
+                          }
                           setNewMemberName('');
                           setEmail('');
                         }}
@@ -388,35 +451,7 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
                 )}
               </div>
 
-              {/* Email Section */}
-              <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={shouldSendEmail}
-                    onChange={(e) => setShouldSendEmail(e.target.checked)}
-                    className="w-4 h-4 text-primary bg-white border-gray-300 rounded focus:ring-primary focus:ring-2"
-                    id="sendEmail"
-                  />
-                  <label htmlFor="sendEmail" className="text-sm font-medium text-secondary cursor-pointer select-none">Enviar Email de Convocação</label>
-                </div>
 
-                {shouldSendEmail && (
-                  <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                    <label className="text-xs font-bold text-text-secondary uppercase mb-1 block">Email do Destinatário</label>
-                    <div className="relative">
-                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">mail</span>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="exemplo@empresa.com"
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
 
               {/* Exam Type */}
               <div className="space-y-1">
@@ -454,11 +489,11 @@ const Convocacao: React.FC<ConvocacaoProps> = ({ startWithModalOpen, onModalOpen
                 Cancelar
               </button>
               <button
-                onClick={handleCreate}
+                onClick={handleSave}
                 className="px-6 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-colors flex items-center gap-2"
               >
-                <span className="material-symbols-outlined text-[18px]">send</span>
-                Criar Convocação
+                <span className="material-symbols-outlined text-[18px]">{editingConvocationId ? 'save' : 'send'}</span>
+                {editingConvocationId ? 'Salvar Alterações' : 'Criar Convocação'}
               </button>
             </div>
           </div>

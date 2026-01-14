@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ViewState, UserProfile } from '../types';
 import { NAV_ITEMS } from '../constants';
+import AsoLaunchModal from './AsoLaunchModal';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -11,6 +12,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, userProfile, onOpenConvocation, onLogout }) => {
+  const [isAsoModalOpen, setIsAsoModalOpen] = useState(false);
 
   return (
     <aside className="w-64 bg-secondary text-white flex flex-col h-full flex-shrink-0 transition-all duration-300">
@@ -49,11 +51,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, userProfil
 
       <div className="p-4 border-t border-white/10">
         <button
-          onClick={onOpenConvocation}
+          onClick={() => setIsAsoModalOpen(true)}
           className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white py-2.5 px-4 rounded-lg font-semibold text-sm transition-colors shadow-lg shadow-primary/20"
         >
-          <span className="material-symbols-outlined text-[1.25rem]">add</span>
-          Nova Convocação
+          <span className="material-symbols-outlined text-[1.25rem]">medical_services</span>
+          Lançar ASO
         </button>
 
         <div className="mt-6 flex items-center justify-between px-2">
@@ -75,6 +77,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, userProfil
           </button>
         </div>
       </div>
+
+      <AsoLaunchModal
+        isOpen={isAsoModalOpen}
+        onClose={() => setIsAsoModalOpen(false)}
+      />
     </aside>
   );
 };
