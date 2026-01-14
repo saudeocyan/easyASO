@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { Member } from '../types';
@@ -24,6 +25,7 @@ const Integrantes: React.FC = () => {
 
   // Action Menu State
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
 
   // Edit Mode State
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -74,16 +76,10 @@ const Integrantes: React.FC = () => {
 
       if (error) throw error;
 
-
-
       const calculateStatus = (dateStr: string | null): Member['status'] => {
-        if (!dateStr) return 'Expired'; // Or Urgent? Assuming expired if no date or old logic.
-
-        // dateStr comes as YYYY-MM-DD from view usually, or we can use the JS Date
+        if (!dateStr) return 'Expired';
         const today = new Date();
         const expiration = new Date(dateStr);
-
-        // Calculate difference in days
         const diffTime = expiration.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -94,7 +90,6 @@ const Integrantes: React.FC = () => {
         return 'Valid';
       };
 
-      // Map DB columns to Frontend types if needed (view matches mostly)
       const mappedMembers: Member[] = (data || []).map((m: any) => ({
         ...m,
         name: m.nome,
@@ -115,7 +110,6 @@ const Integrantes: React.FC = () => {
     }
   };
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterStatus, filterUnit]);
@@ -130,13 +124,13 @@ const Integrantes: React.FC = () => {
     return (nameMatch || emailMatch) && statusMatch && unitMatch;
   });
 
-  const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
+  const itemsPerPageNum = 10;
+  const totalPages = Math.ceil(filteredMembers.length / itemsPerPageNum);
   const paginatedMembers = filteredMembers.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (currentPage - 1) * itemsPerPageNum,
+    currentPage * itemsPerPageNum
   );
 
-  // Get unique units for filter
   const uniqueUnits = Array.from(new Set(members.map(m => m.unit))).filter(Boolean).sort();
 
   const getStatusLabel = (status: string) => {
@@ -154,8 +148,22 @@ const Integrantes: React.FC = () => {
   // --- Actions Handlers ---
 
   const handleActionClick = (e: React.MouseEvent, memberId: string) => {
-    e.stopPropagation(); // Prevent opening details modal
-    setActiveMenuId(activeMenuId === memberId ? null : memberId);
+    e.stopPropagation();
+
+    if (activeMenuId === memberId) {
+      setActiveMenuId(null);
+    } else {
+      const button = e.currentTarget;
+      const rect = button.getBoundingClientRect();
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
+
+      setMenuPosition({
+        top: rect.bottom + scrollTop + 4,
+        left: rect.right + scrollLeft - 192 // Align right edge (w-48 = 12rem = 192px approx)
+      });
+      setActiveMenuId(memberId);
+    }
   };
 
   const handleDelete = async (e: React.MouseEvent, memberId: string) => {
@@ -164,11 +172,7 @@ const Integrantes: React.FC = () => {
       try {
         const { error } = await supabase.from('integrantes').delete().eq('id', memberId);
         if (error) throw error;
-
-        // Log to audit
         await logAction('delete', `Integrante: ${members.find(m => m.id === memberId)?.name}`, `ID: ${memberId}`);
-
-        // Update local state
         setMembers(prev => prev.filter(m => m.id !== memberId));
       } catch (error) {
         console.error('Error deleting member:', error);
@@ -187,9 +191,7 @@ const Integrantes: React.FC = () => {
 
   const handleEditSave = async () => {
     if (!editingMember) return;
-
     try {
-      // Map back to DB columns
       const updates = {
         nome: editForm.name,
         email: editForm.email,
@@ -197,52 +199,29 @@ const Integrantes: React.FC = () => {
         unidade: editForm.unit,
         data_ultimo_aso: (() => {
           if (!editForm.lastAsoDate) return null;
-          // Clean the string
           const raw = editForm.lastAsoDate.trim();
-
-          // Case 1: DD/MM/YYYY (most likely from input mask/placeholder)
           if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
             const parts = raw.split('/');
-            // Ensure YYYY-MM-DD
             return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
           }
-          // Case 2: YYYY-MM-DD (already ISO)
           if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
             return raw;
           }
-
-          // Fallback: try Date parse but be careful with timezones or US format if not ISO
-          // If we can't parse it confidently, might return original or null.
-          // For now, let's stick to the manual swap if it looks like date.
-
-          // Attempt default split if matches patterns like d-m-y
           const parts = raw.split(/[-/]/);
           if (parts.length === 3) {
-            // Assume day first if year is last (common in BR)
-            if (parts[2].length === 4) {
-              return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            }
-            // Assume year first
-            if (parts[0].length === 4) {
-              return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            }
+            if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
           }
           return null;
         })()
       };
 
-      const { error } = await supabase
-        .from('integrantes')
-        .update(updates)
-        .eq('id', editingMember.id);
-
+      const { error } = await supabase.from('integrantes').update(updates).eq('id', editingMember.id);
       if (error) throw error;
 
       alert('Integrante atualizado com sucesso!');
       await logAction('edit', `Integrante: ${editForm.name}`, `Atualizou dados do integrante`);
-
-      fetchMembers(); // Refresh to get calculated status
-
+      fetchMembers();
       setEditingMember(null);
       setEditForm({});
     } catch (error) {
@@ -255,63 +234,42 @@ const Integrantes: React.FC = () => {
     setEditForm(prev => ({ ...prev, [field]: value }));
   };
 
-  // --- Create Handlers ---
-
   const handleCreateInputChange = (field: keyof Member, value: string) => {
     setNewMemberForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleCreateSave = async () => {
-    // Basic validation
     if (!newMemberForm.name || !newMemberForm.email || !newMemberForm.role || !newMemberForm.cpf) {
       alert("Por favor, preencha os campos obrigatórios (Nome, CPF, Email, Cargo).");
       return;
     }
-
     try {
       const newMember = {
         nome: newMemberForm.name,
-        cpf: newMemberForm.cpf.replace(/\D/g, ''), // Clean CPF
+        cpf: newMemberForm.cpf.replace(/\D/g, ''),
         email: newMemberForm.email,
         cargo: newMemberForm.role,
         unidade: newMemberForm.unit || 'Matriz',
         data_ultimo_aso: newMemberForm.lastAsoDate ? newMemberForm.lastAsoDate.split('/').reverse().join('-') : null
       };
-
-      const { error } = await supabase
-        .from('integrantes')
-        .insert([newMember]);
-
+      const { error } = await supabase.from('integrantes').insert([newMember]);
       if (error) throw error;
-
       alert('Integrante cadastrado com sucesso!');
       await logAction('create', `Integrante: ${newMemberForm.name}`, `Novo integrante cadastrado`);
-
-      fetchMembers(); // Refresh list structure
-
+      fetchMembers();
       setIsCreateModalOpen(false);
-      setNewMemberForm({
-        name: '',
-        cpf: '',
-        email: '',
-        role: '',
-        unit: '',
-        lastAsoDate: ''
-      });
-
+      setNewMemberForm({ name: '', cpf: '', email: '', role: '', unit: '', lastAsoDate: '' });
     } catch (error) {
       console.error('Error creating member:', error);
       alert('Erro ao cadastrar integrante.');
     }
   };
 
-  // --- Launch ASO Handlers ---
-
   const handleLaunchAsoInit = (e: React.MouseEvent, member: Member) => {
     e.stopPropagation();
     setAsoTargetMember(member);
     setAsoForm({
-      date: new Date().toISOString().split('T')[0], // Default today
+      date: new Date().toISOString().split('T')[0],
       type: 'Periódico',
       obs: ''
     });
@@ -324,38 +282,28 @@ const Integrantes: React.FC = () => {
       alert("Por favor, preencha a data e o tipo.");
       return;
     }
-
     try {
-      // 1. Update Member's last ASO date
       const { error: updateError } = await supabase
         .from('integrantes')
         .update({ data_ultimo_aso: asoForm.date })
         .eq('id', asoTargetMember.id);
-
       if (updateError) throw updateError;
-
-      // 2. Log Action
       await logAction(
         'aso_launch',
         `Integrante: ${asoTargetMember.name}`,
         `Lançamento de ASO ${asoForm.type} em ${asoForm.date}. Obs: ${asoForm.obs}`
       );
-
       alert('ASO lançado com sucesso!');
-
-      // 3. Refresh & Close
       fetchMembers();
       setIsLaunchAsoModalOpen(false);
       setAsoTargetMember(null);
       setAsoForm({ date: '', type: 'Periódico', obs: '' });
-
     } catch (error) {
       console.error('Error launching ASO:', error);
       alert('Erro ao lançar ASO.');
     }
   };
 
-  // Fetch member history from audit logs
   useEffect(() => {
     if (selectedMember) {
       fetchMemberHistory(selectedMember);
@@ -364,86 +312,59 @@ const Integrantes: React.FC = () => {
 
   const fetchMemberHistory = async (member: Member) => {
     try {
-      // 1. Fetch logs
       const { data: logs, error } = await supabase
         .from('audit_logs')
         .select('*')
         .eq('action', 'aso_launch')
         .eq('target', `Integrante: ${member.name}`)
         .order('timestamp', { ascending: false });
-
       if (error) throw error;
 
-      // 2. Parse logs
       const historyFromLogs = (logs || []).map(log => {
-        // Regex to extract Type and Date: "Lançamento de ASO {Type} em {YYYY-MM-DD}..."
-        // Supports old format with "por Dr..." and new format without it.
         const match = log.details.match(/Lançamento de ASO (.+) em (\d{4}-\d{2}-\d{2})/);
         if (match) {
           const [_, type, dateISO] = match;
           const [year, month, day] = dateISO.split('-');
-          const dateFormatted = `${day}/${month}/${year}`;
           return {
-            date: dateFormatted,
+            date: `${day}/${month}/${year}`,
             type: type,
             status: 'Concluído',
             logId: log.id,
             timestamp: new Date(log.timestamp).getTime()
           };
         }
-        return null; // Should not happen if format is consistent
+        return null;
       }).filter(Boolean) as any[];
 
-      // 3. Merge with current 'lastAsoDate' from Member record (which might come from Excel import)
-      // We want to ensure the "Current" date displayed in the table is also in the history.
       const combinedHistory = [...historyFromLogs];
-
       if (member.lastAsoDate && member.lastAsoDate !== '-') {
-        // Check if this date (DD/MM/YYYY) is already in the logs
         const existsInLogs = historyFromLogs.some(h => h.date === member.lastAsoDate);
-
         if (!existsInLogs) {
-          // If not in logs (e.g. from Excel), add it. 
-          // We assume it's the latest if the logic holds, or we just sort by date.
-          // Since we don't know the exact timestamp, we create one from the date string.
           const [d, m, y] = member.lastAsoDate.split('/');
           const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
-
           combinedHistory.push({
             date: member.lastAsoDate,
-            type: 'Importado', // Indicate source
+            type: 'Importado',
             status: 'Concluído',
             isImported: true,
             timestamp: dateObj.getTime()
           });
         }
       }
-
-      // 4. Sort by timestamp descending
       combinedHistory.sort((a, b) => b.timestamp - a.timestamp);
-
-      // 5. Mark top as current
-      const finalHistory = combinedHistory.map((h, idx) => ({
-        ...h,
-        current: idx === 0
-      }));
-
+      const finalHistory = combinedHistory.map((h, idx) => ({ ...h, current: idx === 0 }));
       setAsoHistory(finalHistory);
-
     } catch (err) {
       console.error('Error fetching history:', err);
     }
   };
 
-  // --- Excel Import Handler ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setLoading(true);
       const reader = new FileReader();
-
       reader.onload = async (evt) => {
         try {
           const bstr = evt.target?.result;
@@ -451,37 +372,27 @@ const Integrantes: React.FC = () => {
           const wsname = workbook.SheetNames[0];
           const ws = workbook.Sheets[wsname];
           const data = XLSX.utils.sheet_to_json(ws);
-
           if (!data || data.length === 0) {
             alert('Arquivo vazio ou inválido.');
             setLoading(false);
             return;
           }
-
-          // Pre-process and validate for duplicates
-          const cpfMap = new Map<string, number[]>(); // Map CPF -> Array of Row Indices (1-based from Excel view)
+          const cpfMap = new Map<string, number[]>();
           const processedData: any[] = [];
           const duplicates: string[] = [];
 
-          // First pass: Process, clean, and check duplicates
           data.forEach((row: any, index: number) => {
-            // Clean CPF
             const rawCpf = String(row['CPF'] || '');
             const cleanCpf = rawCpf.replace(/\D/g, '');
-
-            if (!cleanCpf) return; // Skip rows without CPF
-
+            if (!cleanCpf) return;
             const finalCpf = cleanCpf.padStart(11, '0');
-            const excelRowNumber = index + 2; // +2 because index is 0-based and header is row 1
+            const excelRowNumber = index + 2;
 
-            // Check duplicate in map
             if (cpfMap.has(finalCpf)) {
               cpfMap.get(finalCpf)?.push(excelRowNumber);
             } else {
               cpfMap.set(finalCpf, [excelRowNumber]);
             }
-
-            // Handle date
             let asoDate = null;
             if (row['Data Ultimo ASO']) {
               if (typeof row['Data Ultimo ASO'] === 'number') {
@@ -491,7 +402,6 @@ const Integrantes: React.FC = () => {
                 asoDate = String(row['Data Ultimo ASO']).split('/').reverse().join('-');
               }
             }
-
             processedData.push({
               cpf: finalCpf,
               nome: row['Nome'],
@@ -502,37 +412,26 @@ const Integrantes: React.FC = () => {
             });
           });
 
-          // Identify actual duplicates
           const errorMessages: string[] = [];
           cpfMap.forEach((rows, cpf) => {
             if (rows.length > 1) {
               errorMessages.push(`CPF ${cpf} aparece ${rows.length} vezes (Linhas: ${rows.join(', ')})`);
             }
           });
-
           if (errorMessages.length > 0) {
             alert(`Erro: Duplicidade encontrada no arquivo.\n\n${errorMessages.join('\n')}\n\nCorrija o Excel e tente novamente.`);
             setLoading(false);
             return;
           }
-
           if (processedData.length === 0) {
             alert('Nenhum dado válido encontrado (Verifique se as colunas Nome, CPF e Email existem).');
             setLoading(false);
             return;
           }
-
-          console.log('Dados processados para envio:', processedData);
-
-          const { error } = await supabase
-            .from('integrantes')
-            .upsert(processedData, { onConflict: 'cpf' });
-
+          const { error } = await supabase.from('integrantes').upsert(processedData, { onConflict: 'cpf' });
           if (error) throw error;
-
           alert('Importação concluída com sucesso!');
           fetchMembers();
-
         } catch (err: any) {
           console.error('Erro ao processar arquivo:', err);
           alert(`Erro ao processar o arquivo Excel: ${err.message}`);
@@ -541,9 +440,7 @@ const Integrantes: React.FC = () => {
           if (fileInputRef.current) fileInputRef.current.value = '';
         }
       };
-
       reader.readAsArrayBuffer(file);
-
     } catch (error) {
       console.error('Error importing file:', error);
       alert('Erro ao iniciar importação.');
@@ -678,11 +575,6 @@ const Integrantes: React.FC = () => {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {/* Avatar removed as requested 
-                        <div className={`w-9 h-9 rounded-full ${member.bgColor} ${member.initialsColor} flex items-center justify-center font-bold text-sm border border-gray-100`}>
-                          {member.initials}
-                        </div> 
-                        */}
                         <div>
                           <p className="font-semibold text-secondary group-hover:text-primary transition-colors">{member.name}</p>
                           <p className="text-xs text-text-secondary">{member.email}</p>
@@ -710,33 +602,6 @@ const Integrantes: React.FC = () => {
                       >
                         <span className="material-symbols-outlined text-[1.25rem]">more_vert</span>
                       </button>
-
-                      {/* Action Dropdown */}
-                      {activeMenuId === member.id && (
-                        <div ref={menuRef} className="absolute right-8 top-8 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in duration-100">
-                          <button
-                            onClick={(e) => handleEditInit(e, member)}
-                            className="w-full text-left px-4 py-3 text-sm text-text-main hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[1.1rem] text-text-secondary">edit</span>
-                            Editar Dados
-                          </button>
-                          <button
-                            onClick={(e) => handleLaunchAsoInit(e, member)}
-                            className="w-full text-left px-4 py-3 text-sm text-text-main hover:bg-gray-50 flex items-center gap-2 transition-colors border-t border-gray-50 bg-primary/5 hover:bg-primary/10"
-                          >
-                            <span className="material-symbols-outlined text-[1.1rem] text-primary">medical_services</span>
-                            <span className="text-primary font-medium">Lançar ASO</span>
-                          </button>
-                          <button
-                            onClick={(e) => handleDelete(e, member.id)}
-                            className="w-full text-left px-4 py-3 text-sm text-status-danger hover:bg-status-danger/5 flex items-center gap-2 transition-colors border-t border-gray-50"
-                          >
-                            <span className="material-symbols-outlined text-[1.1rem]">delete</span>
-                            Excluir Integrante
-                          </button>
-                        </div>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -767,6 +632,45 @@ const Integrantes: React.FC = () => {
         </div>
       </div>
 
+      {/* Portal Action Menu */}
+      {activeMenuId && (() => {
+        const activeMember = members.find(m => m.id === activeMenuId);
+        if (!activeMember) return null;
+        return createPortal(
+          <div
+            ref={menuRef}
+            className="fixed min-w-[12rem] bg-white rounded-lg shadow-xl border border-gray-100 z-[9999] overflow-hidden animate-in fade-in zoom-in duration-100"
+            style={{
+              top: menuPosition.top,
+              left: menuPosition.left
+            }}
+          >
+            <button
+              onClick={(e) => handleEditInit(e, activeMember)}
+              className="w-full text-left px-4 py-3 text-sm text-text-main hover:bg-gray-50 flex items-center gap-2 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[1.1rem] text-text-secondary">edit</span>
+              Editar Dados
+            </button>
+            <button
+              onClick={(e) => handleLaunchAsoInit(e, activeMember)}
+              className="w-full text-left px-4 py-3 text-sm text-text-main hover:bg-gray-50 flex items-center gap-2 transition-colors border-t border-gray-50 bg-primary/5 hover:bg-primary/10"
+            >
+              <span className="material-symbols-outlined text-[1.1rem] text-primary">medical_services</span>
+              <span className="text-primary font-medium">Lançar ASO</span>
+            </button>
+            <button
+              onClick={(e) => handleDelete(e, activeMember.id)}
+              className="w-full text-left px-4 py-3 text-sm text-status-danger hover:bg-status-danger/5 flex items-center gap-2 transition-colors border-t border-gray-50"
+            >
+              <span className="material-symbols-outlined text-[1.1rem]">delete</span>
+              Excluir Integrante
+            </button>
+          </div>,
+          document.body
+        );
+      })()}
+
       {/* Member Details Modal (Read Only / Download) */}
       {selectedMember && !editingMember && !isCreateModalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
@@ -781,12 +685,7 @@ const Integrantes: React.FC = () => {
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
-              {/* Avatar removed as requested */}
               <div className="absolute -bottom-10 left-8">
-                {/* Placeholder or just name title style if needed, but for now removing circle content 
-                    User requested to remove circle. I will keep the spacing or just remove the element.
-                    "retire o circulo para 'avatar' que fica em cima do nome"
-                */}
               </div>
             </div>
 
@@ -832,7 +731,6 @@ const Integrantes: React.FC = () => {
                                   <p className={`font-semibold text-sm ${aso.current ? 'text-primary' : 'text-secondary'}`}>{aso.type}</p>
                                   <p className="text-xs text-text-secondary">{aso.date}</p>
                                 </div>
-                                {/* Removed download button for now as per previous mock (no implementation yet) */}
                               </div>
                             </div>
                           </div>
@@ -889,8 +787,6 @@ const Integrantes: React.FC = () => {
                   </select>
                 </div>
               </div>
-
-
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-text-secondary uppercase">Observações</label>
